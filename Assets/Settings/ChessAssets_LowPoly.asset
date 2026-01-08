@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6ed0bfc4fb343d4299418daa0a47906, type: 3}
+  m_Name: ChessAssets_LowPoly
+  m_EditorClassIdentifier: 
+  WhitePawn: {fileID: 7214578409024700850, guid: 94a1fcff2588bdf43be71dbc72d0bfa3, type: 3}
+  WhiteKnight: {fileID: 3722945592169281226, guid: 95e2aada2bba2414bb9dbc7e1fe5014f, type: 3}
+  WhiteBishop: {fileID: 8515621950377823269, guid: 3201fc7e29ad1414eaeeed6d54ddcc7b, type: 3}
+  WhiteRook: {fileID: 1972316004226196561, guid: fbd5cda9d840d1a49be374e0e235cad5, type: 3}
+  WhiteQueen: {fileID: 2821195850634350111, guid: 53eaa15fc73219e45bd77501474ff2b3, type: 3}
+  WhiteKing: {fileID: 6814726394588844152, guid: 8affb516fdd28c644817a4a224678bd3, type: 3}
+  BlackPawn: {fileID: 2854993528784842957, guid: b662bf0bdd59a4e419aa67d3402e3156, type: 3}
+  BlackKnight: {fileID: 4567273835768690436, guid: 39df72ec2427f6b4795b6abc12e14753, type: 3}
+  BlackBishop: {fileID: 7617897995650489993, guid: 0f4c3b74058806044bcc37e88c12f4c7, type: 3}
+  BlackRook: {fileID: 1192716339929087758, guid: 89199580a9c958247bb00ab1000e091d, type: 3}
+  BlackQueen: {fileID: 9176950894274749401, guid: da06c6d5b76694840b5516f6282cf7af, type: 3}
+  BlackKing: {fileID: 4938084125943191547, guid: 3322e3c8b5421d944aff4d2646757ae3, type: 3}
+  SelectedSquareMat: {fileID: 2100000, guid: a3577d799040991478f3c045c0ac12bf, type: 2}
+  LegalMoveMat: {fileID: 2100000, guid: be026ae94a3bbba44a6ae468df01bdae, type: 2}
+  LastMoveMat: {fileID: 2100000, guid: be026ae94a3bbba44a6ae468df01bdae, type: 2}

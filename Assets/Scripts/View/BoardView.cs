@@ -11,7 +11,8 @@ namespace ChessBattle.View
         [Header("Configuration")]
         public ChessAssets Assets;
         public Transform BoardOrigin; // Should be at a1 (0,0)
-        public float SquareSize = 1.0f;
+        public float SquareSize = 1.0f; // Distance between squares
+        public float PieceYOffset = 0.0f; // Adjust to lift pieces if they drown
 
         [Header("State")]
         private GameObject[] _pieceObjects = new GameObject[64];
@@ -24,15 +25,42 @@ namespace ChessBattle.View
             _currentBoard = board;
             _onSquareSelected = onSquareSelected;
             
-            // 1. Try to link existing pieces (Editor Spawned) FIRST
+            // 1. Try to link existing pieces (local or global)
             bool foundExisting = false;
             for (int i = 0; i < 64; i++)
             {
                 BoardPosition pos = new BoardPosition(i % 8, i / 8);
-                Transform existing = transform.Find($"Piece_{pos.File}_{pos.Rank}");
+                string pName = $"Piece_{pos.File}_{pos.Rank}";
+                
+                // Try Local Child First
+                Transform existing = transform.Find(pName);
+                
+                // If not found, try Global Search (fallback)
+                if (existing == null)
+                {
+                    GameObject globalObj = GameObject.Find(pName);
+                    if (globalObj != null) 
+                    {
+                        existing = globalObj.transform;
+                        // Reparent to ensure order
+                        existing.SetParent(this.transform);
+                    }
+                }
+
                 if (existing != null)
                 {
                     _pieceObjects[i] = existing.gameObject;
+                    
+                    // AUTO-DETECT HEIGHT if first piece found
+                    if (!foundExisting) 
+                    {
+                         // Assume board is flat, take Y from this piece relative to BoardOrigin
+                         float pieceY = existing.position.y;
+                         float boardY = BoardOrigin != null ? BoardOrigin.position.y : transform.position.y;
+                         PieceYOffset = pieceY - boardY;
+                         Debug.Log($"[BoardView] Auto-detected PieceYOffset: {PieceYOffset}");
+                    }
+                    
                     foundExisting = true;
                 }
             }
@@ -81,14 +109,12 @@ namespace ChessBattle.View
                     }
                     else
                     {
-                        // Check if visual matches logical (e.g. Promotion changed Pawn to Queen)
-                        // A simple check is tricky without Component. 
-                        // For now we assume if it exists it's correct type, UNLESS it's a promotion case.
-                        // Ideally we'd check name or Add Component.
-                        // Let's just Snap Position to be safe.
-                        BoardPosition pos = new BoardPosition(i % 8, i / 8);
-                        currentObj.transform.position = GetWorldPosition(pos);
-                        currentObj.name = $"Piece_{pos.File}_{pos.Rank}"; // Sync name
+                        // Update Name to ensure consistent lookup
+                        currentObj.name = $"Piece_{i%8}_{i/8}";
+                        
+                        // NOTE: Do NOT snap position here. User wants to keep Editor placement.
+                        // Only snap if needed (e.g. drift)? No, trust Editor.
+                        // currentObj.transform.position = GetWorldPosition(pos);
                     }
                 }
             }
@@ -163,7 +189,7 @@ namespace ChessBattle.View
             // And X is File, Z is Rank (standard Unity board orientation)
             // Adjust depending on actual mesh pivot.
             Vector3 origin = BoardOrigin != null ? BoardOrigin.position : Vector3.zero;
-            return origin + new Vector3(pos.File * SquareSize, 0, pos.Rank * SquareSize);
+            return origin + new Vector3(pos.File * SquareSize, PieceYOffset, pos.Rank * SquareSize);
         }
 
         private void Update()

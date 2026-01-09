@@ -23,6 +23,121 @@ namespace ChessBattle.Editor
             SpawnPiecesInEditor();
         }
 
+        [MenuItem("Tools/Switch to High Poly Assets")]
+        public static void SwitchToHighPoly()
+        {
+            string basePath = "Assets/Chess MEGA-pack/prefabs/pieces/HighPoly/";
+            
+            // Reload Asset
+            string assetPath = "Assets/Settings/ChessAssets_LowPoly.asset";
+            ChessAssets assets = AssetDatabase.LoadAssetAtPath<ChessAssets>(assetPath);
+            if (assets == null)
+            {
+                Debug.LogError("Setup Chess Scene first!");
+                return;
+            }
+
+            // White = Base Name (e.g. pawnHighPoly.prefab)
+            assets.WhitePawn = LoadPrefab(basePath + "pawnHighPoly.prefab");
+            assets.WhiteKnight = LoadPrefab(basePath + "knightHighPoly.prefab");
+            assets.WhiteBishop = LoadPrefab(basePath + "bishopHighPoly.prefab");
+            assets.WhiteRook = LoadPrefab(basePath + "rookHighPoly.prefab");
+            assets.WhiteQueen = LoadPrefab(basePath + "queenHighPoly.prefab");
+            assets.WhiteKing = LoadPrefab(basePath + "KingHighPoly.prefab"); // Note 'King' capitalization in file list
+
+            // Black = " 1" Suffix (e.g. pawnHighPoly 1.prefab)
+            assets.BlackPawn = LoadPrefab(basePath + "pawnHighPoly 1.prefab");
+            assets.BlackKnight = LoadPrefab(basePath + "knightHighPoly 1.prefab");
+            assets.BlackBishop = LoadPrefab(basePath + "bishopHighPoly 1.prefab");
+            assets.BlackRook = LoadPrefab(basePath + "rookHighPoly 1.prefab");
+            assets.BlackQueen = LoadPrefab(basePath + "queenHighPoly 1.prefab");
+            assets.BlackKing = LoadPrefab(basePath + "KingHighPoly 1.prefab");
+
+            EditorUtility.SetDirty(assets);
+            AssetDatabase.SaveAssets();
+
+            Debug.Log("Switched to High Poly Assets! Respawning...");
+            SpawnPiecesInEditor();
+        }
+
+        [MenuItem("Tools/Process & Assign NEW FBX Assets")]
+        public static void ProcessNewAssetsAndAssign()
+        {
+            // 1. Ensure Output Directory
+            string outputDir = "Assets/Prefabs/ProcessedChess";
+            if (!AssetDatabase.IsValidFolder("Assets/Prefabs")) AssetDatabase.CreateFolder("Assets", "Prefabs");
+            if (!AssetDatabase.IsValidFolder(outputDir)) AssetDatabase.CreateFolder("Assets/Prefabs", "ProcessedChess");
+
+            // 2. Process Files
+            // Structure: Assets/Low Poly Chess/Black/Bishop.fbx
+            string sourceRoot = "Assets/Low Poly Chess/";
+            string[] teams = new[] { "White", "Black" };
+            string[] pieces = new[] { "Pawn", "Rook", "Knight", "Bishop", "Queen", "King" };
+
+            ChessAssets assets = AssetDatabase.LoadAssetAtPath<ChessAssets>("Assets/Settings/ChessAssets_LowPoly.asset");
+            if (assets == null)
+            {
+                Debug.LogError("Assets config not found!");
+                return;
+            }
+
+            foreach (var team in teams)
+            {
+                foreach (var piece in pieces)
+                {
+                    string fbxPath = $"{sourceRoot}{team}/{piece}.fbx";
+                    GameObject fbx = AssetDatabase.LoadAssetAtPath<GameObject>(fbxPath);
+                    
+                    if (fbx == null)
+                    {
+                        Debug.LogWarning($"FBX not found at {fbxPath}");
+                        continue;
+                    }
+
+                    // Create Wrapper
+                    GameObject wrapper = new GameObject($"{team}_{piece}_Corrected");
+                    GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(fbx);
+                    model.transform.SetParent(wrapper.transform);
+                    model.transform.localPosition = Vector3.zero;
+                    
+                    // Fix Rotation: FBX imports often needed -90 on X
+                    model.transform.localRotation = Quaternion.Euler(-90, 0, 0); 
+                    wrapper.transform.localScale = Vector3.one * 0.5f;
+
+                    // Save as Prefab
+                    string prefabPath = $"{outputDir}/{team}_{piece}.prefab";
+                    GameObject newPrefab = PrefabUtility.SaveAsPrefabAsset(wrapper, prefabPath);
+                    
+                    DestroyImmediate(wrapper);
+
+                    // Assign to Assets
+                    if (team == "White")
+                    {
+                         if (piece == "Pawn") assets.WhitePawn = newPrefab;
+                         if (piece == "Knight") assets.WhiteKnight = newPrefab;
+                         if (piece == "Bishop") assets.WhiteBishop = newPrefab;
+                         if (piece == "Rook") assets.WhiteRook = newPrefab;
+                         if (piece == "Queen") assets.WhiteQueen = newPrefab;
+                         if (piece == "King") assets.WhiteKing = newPrefab;
+                    }
+                    else
+                    {
+                         if (piece == "Pawn") assets.BlackPawn = newPrefab;
+                         if (piece == "Knight") assets.BlackKnight = newPrefab;
+                         if (piece == "Bishop") assets.BlackBishop = newPrefab;
+                         if (piece == "Rook") assets.BlackRook = newPrefab;
+                         if (piece == "Queen") assets.BlackQueen = newPrefab;
+                         if (piece == "King") assets.BlackKing = newPrefab;
+                    }
+                }
+            }
+            
+            EditorUtility.SetDirty(assets);
+            AssetDatabase.SaveAssets();
+            Debug.Log("Processed all FBX assets (Geometry Only) and assigned them! Spawning...");
+            SpawnPiecesInEditor();
+        }
+
         private static void SetupGameManager()
         {
             // 1. Find or Create GameManager

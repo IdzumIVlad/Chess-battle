@@ -10,6 +10,7 @@ namespace ChessBattle.Game
     {
         public BoardView BoardView;
         public Camera MainCamera;
+        public GameHUD HUD; 
         
         public enum GameMode { HumanVsHuman, AiVsAi }
         [Header("Game Settings")]
@@ -17,6 +18,12 @@ namespace ChessBattle.Game
         
         [Header("AI Configuration")]
         public ChessBattle.AI.LLMService AiService;
+        public ChessBattle.AI.LLMProvider WhiteProvider = ChessBattle.AI.LLMProvider.OpenAI;
+        public ChessBattle.AI.LLMProvider BlackProvider = ChessBattle.AI.LLMProvider.Grok;
+        
+        public Sprite LogoOpenAI;
+        public Sprite LogoGrok;
+        
         public string WhitePersonality = "Aggressive Grandmaster";
         public string BlackPersonality = "Cautious Beginner";
         
@@ -37,9 +44,32 @@ namespace ChessBattle.Game
             _moveGenerator = new MoveGenerator();
             
             // Wire up view
-            // Wire up view
             BoardView.Initialize(_board, OnSquareSelected);
             
+            // Update HUD
+            if (HUD)
+            {
+                // Resolve Logos
+                Sprite whiteSprite = (WhiteProvider == ChessBattle.AI.LLMProvider.OpenAI) ? LogoOpenAI : LogoGrok;
+                Sprite blackSprite = (BlackProvider == ChessBattle.AI.LLMProvider.OpenAI) ? LogoOpenAI : LogoGrok;
+                HUD.SetLogos(whiteSprite, blackSprite);
+                
+                // Resolve Names
+                string wName = "Player (White)";
+                string bName = "Player (Black)";
+                
+                if (Mode == GameMode.AiVsAi)
+                {
+                    wName = WhiteProvider.ToString();
+                    bName = BlackProvider.ToString();
+                }
+                
+                HUD.SetPlayerNames(wName, bName);
+                
+                HUD.SetTurn(_board.CurrentTurn);
+                HUD.ShowCheck(false);
+            }
+
             // Calculate initial moves
             _legalMoves = _moveGenerator.GenerateLegalMoves(_board);
 
@@ -63,9 +93,24 @@ namespace ChessBattle.Game
             List<string> strMoves = new List<string>();
             foreach (var m in _legalMoves) strMoves.Add(m.ToString());
 
-            // 2. Determine Personality
-            string personality = _board.CurrentTurn == TeamColor.White ? WhitePersonality : BlackPersonality;
-            Debug.Log($"[AI] Turn: {_board.CurrentTurn} ({personality}) thinking...");
+            // 2. Determine Personality & Provider
+            string personality;
+            ChessBattle.AI.LLMProvider provider;
+            
+            if (_board.CurrentTurn == TeamColor.White)
+            {
+                personality = WhitePersonality;
+                provider = WhiteProvider;
+            }
+            else
+            {
+                personality = BlackPersonality;
+                provider = BlackProvider;
+            }
+
+            Debug.Log($"[AI] Turn: {_board.CurrentTurn} ({personality}, {provider}) thinking...");
+            
+            if (HUD) HUD.ShowThought(_board.CurrentTurn, "Hmmm...");
 
             // 3. Request Move
             if (AiService == null)
@@ -75,11 +120,13 @@ namespace ChessBattle.Game
                  yield break;
             }
 
-            var task = AiService.GetMoveAsync(fen, strMoves, personality);
+            var task = AiService.GetMoveAsync(fen, strMoves, personality, provider);
             yield return new WaitUntil(() => task.IsCompleted);
 
             string moveStr = task.Result;
             Debug.Log($"[AI] Selected Move: {moveStr}");
+            
+            if (HUD) HUD.ShowThought(_board.CurrentTurn, $"I verify {moveStr}!");
 
             // 4. Parse & Execute
             ChessMove? selectedMove = null;
@@ -91,6 +138,8 @@ namespace ChessBattle.Game
                     break;
                 }
             }
+            
+            // ... (Rest of function identical)
 
             if (selectedMove.HasValue)
             {
@@ -99,11 +148,19 @@ namespace ChessBattle.Game
                    BoardView.RefreshBoard();
                    _legalMoves = _moveGenerator.GenerateLegalMoves(_board);
                    
+                   // HUD Updates
+                   if (HUD)
+                   {
+                       HUD.SetTurn(_board.CurrentTurn);
+                       HUD.ShowCheck(_moveGenerator.IsKingInCheck(_board, _board.CurrentTurn));
+                   }
+
                    _isAiThinking = false;
                    
                    if (_legalMoves.Count == 0)
                    {
                        Debug.Log("Game Over!");
+                       if (HUD) HUD.ShowThought(_board.CurrentTurn, "Good game!");
                    }
                    else
                    {
@@ -115,12 +172,22 @@ namespace ChessBattle.Game
             else
             {
                 Debug.LogError($"[AI] Returned illegal or unparseable move: {moveStr}. Retrying random...");
+                if (HUD) HUD.ShowThought(_board.CurrentTurn, "Wait, that's illegal? Let me try again.");
+                
                 // Fallback: Random move to unblock game
                 var fallback = _legalMoves[Random.Range(0, _legalMoves.Count)];
                 BoardView.AnimateMove(fallback, () => {
                    _board.MakeMove(fallback);
                    BoardView.RefreshBoard();
                    _legalMoves = _moveGenerator.GenerateLegalMoves(_board);
+                   
+                   // HUD Updates
+                   if (HUD)
+                   {
+                       HUD.SetTurn(_board.CurrentTurn);
+                       HUD.ShowCheck(_moveGenerator.IsKingInCheck(_board, _board.CurrentTurn));
+                   }
+                   
                    _isAiThinking = false;
                    StartCoroutine(AiTurnRoutine());
                 });
@@ -147,6 +214,14 @@ namespace ChessBattle.Game
                         
                         // Next Turn Logic
                         _legalMoves = _moveGenerator.GenerateLegalMoves(_board);
+                        
+                        // HUD Updates
+                        if (HUD)
+                        {
+                            HUD.SetTurn(_board.CurrentTurn);
+                            HUD.ShowCheck(_moveGenerator.IsKingInCheck(_board, _board.CurrentTurn));
+                        }
+
                         if (_legalMoves.Count == 0)
                         {
                              Debug.Log("Game Over! (Checkmate or Stalemate)");

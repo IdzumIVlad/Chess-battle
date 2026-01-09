@@ -147,6 +147,12 @@ namespace ChessBattle.View
 
             // Move
             Vector3 targetPos = GetWorldPosition(move.To);
+            
+            // IMPORTANT: Preserve the piece's CURRENT Y-height relative to the board
+            // This prevents pieces with different pivots (Queen vs Pawn) from sinking or floating
+            // if we rely on a single global "PieceYOffset".
+            targetPos.y = movingPiece.transform.position.y;
+
             movingPiece.transform.DOMove(targetPos, 0.5f).SetEase(Ease.OutQuad).OnComplete(() => {
                 _pieceObjects[toIdx] = movingPiece;
                 _pieceObjects[fromIdx] = null;

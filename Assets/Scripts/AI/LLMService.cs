@@ -8,9 +8,11 @@ using ChessBattle.Core;
 
 namespace ChessBattle.AI
 {
+    public enum LLMProvider { OpenAI, Grok }
+
     public interface IChessAI
     {
-        Task<string> GetMoveAsync(string fen, List<string> legalMoves, string personality);
+        Task<string> GetMoveAsync(string fen, List<string> legalMoves, string personality, LLMProvider provider);
     }
 
     [Serializable]
@@ -43,10 +45,14 @@ namespace ChessBattle.AI
     public class LLMService : MonoBehaviour, IChessAI
     {
         [Header("API Configuration")]
-        [Header("API Configuration")]
-        public string ApiKey = "YOUR_API_KEY_HERE";
-        public string Model = "gpt-4o-mini"; // Faster/Cheaper for tests
-        public string Endpoint = "https://api.openai.com/v1/chat/completions";
+        public string OpenAI_ApiKey = "YOUR_KEY";
+        public string Grok_ApiKey = "YOUR_KEY";
+        
+        public string OpenAI_Model = "gpt-4o-mini"; 
+        public string Grok_Model = "grok-beta";
+        
+        public string OpenAI_Endpoint = "https://api.openai.com/v1/chat/completions";
+        public string Grok_Endpoint = "https://api.x.ai/v1/chat/completions";
         
         [Header("Debug")]
         public bool DebugResponses = true;
@@ -55,14 +61,15 @@ namespace ChessBattle.AI
         private class ApiKeysConfig
         {
             public string OpenAI_Key;
+            public string Grok_Key;
         }
 
         private void Awake()
         {
-            LoadApiKey();
+            LoadApiKeys();
         }
 
-        private void LoadApiKey()
+        private void LoadApiKeys()
         {
             string path = System.IO.Path.Combine(Application.dataPath, "Secrets/ApiKeys.json");
             if (System.IO.File.Exists(path))
@@ -71,11 +78,11 @@ namespace ChessBattle.AI
                 {
                     string json = System.IO.File.ReadAllText(path);
                     ApiKeysConfig config = JsonUtility.FromJson<ApiKeysConfig>(json);
-                    if (!string.IsNullOrEmpty(config.OpenAI_Key) && config.OpenAI_Key != "YOUR_KEY_HERE")
-                    {
-                        ApiKey = config.OpenAI_Key;
-                        Debug.Log("[LLMService] Loaded API Key from Secrets/ApiKeys.json");
-                    }
+                    
+                    if (!string.IsNullOrEmpty(config.OpenAI_Key)) OpenAI_ApiKey = config.OpenAI_Key;
+                    if (!string.IsNullOrEmpty(config.Grok_Key)) Grok_ApiKey = config.Grok_Key;
+                    
+                    Debug.Log("[LLMService] Loaded API Keys.");
                 }
                 catch (Exception e)
                 {
@@ -84,25 +91,29 @@ namespace ChessBattle.AI
             }
         }
 
-        public async Task<string> GetMoveAsync(string fen, List<string> legalMoves, string personality)
+        public async Task<string> GetMoveAsync(string fen, List<string> legalMoves, string personality, LLMProvider provider)
         {
-            if (string.IsNullOrEmpty(ApiKey) || ApiKey.Contains("YOUR_API"))
+            string apiKey = (provider == LLMProvider.OpenAI) ? OpenAI_ApiKey : Grok_ApiKey;
+            string endpoint = (provider == LLMProvider.OpenAI) ? OpenAI_Endpoint : Grok_Endpoint;
+            string model = (provider == LLMProvider.OpenAI) ? OpenAI_Model : Grok_Model;
+
+            if (string.IsNullOrEmpty(apiKey) || apiKey.Contains("YOUR_KEY"))
             {
-                Debug.LogError("OpenAI API Key is missing! Please set it in LLMService.");
+                Debug.LogError($"{provider} API Key is missing!");
                 return "";
             }
 
             // Construct JSON
-            string jsonBody = ConstructPayload(fen, legalMoves, personality);
+            string jsonBody = ConstructPayload(fen, legalMoves, personality, model);
             
             // Web Request
-            using (UnityWebRequest request = new UnityWebRequest(Endpoint, "POST"))
+            using (UnityWebRequest request = new UnityWebRequest(endpoint, "POST"))
             {
                 byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
                 request.uploadHandler = new UploadHandlerRaw(bodyRaw);
                 request.downloadHandler = new DownloadHandlerBuffer();
                 request.SetRequestHeader("Content-Type", "application/json");
-                request.SetRequestHeader("Authorization", "Bearer " + ApiKey);
+                request.SetRequestHeader("Authorization", "Bearer " + apiKey);
 
                 var operation = request.SendWebRequest();
 
@@ -110,29 +121,30 @@ namespace ChessBattle.AI
 
                 if (request.result != UnityWebRequest.Result.Success)
                 {
-                    Debug.LogError($"OpenAI API Error: {request.error}\nResponse: {request.downloadHandler.text}");
+                    Debug.LogError($"{provider} API Error: {request.error}\nResponse: {request.downloadHandler.text}");
                     return "";
                 }
 
                 string responseText = request.downloadHandler.text;
-                if (DebugResponses) Debug.Log($"LLM Response: {responseText}");
+                if (DebugResponses) Debug.Log($"[{provider}] Response: {responseText}");
 
-                // Parse
+                // Parse (Response format is identical for OpenAI and Grok/xAI)
                 return ParseResponse(responseText, legalMoves);
             }
         }
 
-        private string ConstructPayload(string fen, List<string> legalMoves, string personality)
+        private string ConstructPayload(string fen, List<string> legalMoves, string personality, string modelName)
         {
             string systemPrompt = $"You are a chess engine. Personality: {personality}. " +
                                   $"Current FEN: {fen}. " +
                                   $"List of legal moves: {string.Join(", ", legalMoves)}. " +
                                   $"Choose the best move from the list for the current turn. " +
-                                  $"Reply ONLY with the exact move string (e.g. 'e2e4'). Do not add any reasoning or punctuation.";
+                                  $"IMPORTANT: If promoting a pawn, you MUST select a move with the promotion suffix (e.g., 'e7e8q' for Queen, 'e7e8r' for Rook). " +
+                                  $"Reply ONLY with the exact move string (e.g. 'e2e4' or 'a7a8q'). Do not add any reasoning or punctuation.";
 
             OpenAIRequest req = new OpenAIRequest
             {
-                model = Model,
+                model = modelName,
                 temperature = 0.7f,
                 messages = new List<OpenUIMessage>
                 {
@@ -156,20 +168,14 @@ namespace ChessBattle.AI
                     content = content.Replace("\"", "").Replace("'", "").Replace(".", "").Trim();
                     
                     // Simple validation
-                    if (legalMoves.Contains(content))
+                    if (legalMoves.Contains(content)) return content;
+                    
+                    // Fuzzy match
+                    foreach(var move in legalMoves)
                     {
-                        return content;
+                        if (content.Contains(move)) return move;
                     }
-                    else
-                    {
-                         Debug.LogWarning($"LLM suggested illegal move: {content}");
-                         
-                         // Retry check: maybe it added reasoning? e.g. "My move is e2e4"
-                         foreach(var move in legalMoves)
-                         {
-                             if (content.Contains(move)) return move;
-                         }
-                    }
+                     Debug.LogWarning($"LLM suggested illegal move: {content}");
                 }
             }
             catch (Exception e)

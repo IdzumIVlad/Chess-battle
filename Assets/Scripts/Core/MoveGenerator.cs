@@ -30,6 +30,14 @@ namespace ChessBattle.Core
             return legalMoves;
         }
 
+        public bool IsKingInCheck(ChessBoard board, TeamColor kingColor)
+        {
+            _board = board;
+            BoardPosition kingPos = FindKing(board, kingColor);
+            TeamColor attacker = (kingColor == TeamColor.White) ? TeamColor.Black : TeamColor.White;
+            return IsSquareAttacked(board, kingPos, attacker);
+        }
+
         private List<ChessMove> GeneratePseudoLegalMoves()
         {
             List<ChessMove> moves = new List<ChessMove>();

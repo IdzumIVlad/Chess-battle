@@ -44,25 +44,39 @@ namespace ChessBattle.View
             }
         }
 
+        private bool _isOrbiting = false;
+
         private void LateUpdate()
         {
             if (Target == null) return;
+
+            // Check for activation
+            bool inputActive = Input.GetMouseButton(1) || Mathf.Abs(Input.GetAxis("Mouse ScrollWheel")) > 0.001f;
+            
+            if (!_isOrbiting)
+            {
+                if (inputActive || AutoRotate)
+                {
+                    _isOrbiting = true;
+                    SyncState(); // Sync one last time to ensure no jump
+                }
+                else
+                {
+                    return; // Do NOTHING. Stay exactly where placed in Editor.
+                }
+            }
 
             // Input
             if (Input.GetMouseButton(1)) // Right Mouse to Orbit
             {
                 _currentX += Input.GetAxis("Mouse X") * Sensitivity;
                 _currentY -= Input.GetAxis("Mouse Y") * Sensitivity;
-                AutoRotate = false; // Disable auto rotate on interaction
+                AutoRotate = false; 
             }
             else if (AutoRotate)
             {
                 _currentX += AutoRotateSpeed * Time.deltaTime;
             }
-
-            // _currentY = Mathf.Clamp(_currentY, 10.0f, 80.0f); // Disabled clamp to allow initial pos
-            // Re-enable clamp ONLY if input is detected, or ensure initial Y is valid first.
-            // For now, let's just clamp the RESULTING value only if we move.
             
             if (Input.GetMouseButton(1) || AutoRotate)
             {
@@ -80,6 +94,17 @@ namespace ChessBattle.View
 
             transform.rotation = rotation;
             transform.position = position;
+        }
+
+        private void SyncState()
+        {
+             if (Target == null) return;
+             _currentDistance = Vector3.Distance(transform.position, Target.position);
+             Distance = _currentDistance; 
+
+             Vector3 angles = transform.eulerAngles;
+             _currentX = angles.y;
+             _currentY = angles.x;
         }
     }
 }

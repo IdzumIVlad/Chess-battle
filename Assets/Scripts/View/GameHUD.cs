@@ -38,6 +38,12 @@ namespace ChessBattle.View
             if (BlackLogo && blackSprite) BlackLogo.sprite = blackSprite;
         }
 
+        public void SetPlayerNames(string whiteName, string blackName)
+        {
+            if (WhiteNameText) WhiteNameText.text = whiteName;
+            if (BlackNameText) BlackNameText.text = blackName;
+        }
+
         public void SetTurn(TeamColor turn)
         {
             if (TurnText) TurnText.text = $"{turn}'s Turn";
